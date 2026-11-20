@@ -482,7 +482,7 @@ function makeThumbs() {
       sg.drawImage(renderer.domElement, 0, H - Math.round(sh * DPR), Math.round(sw * DPR), Math.round(sh * DPR), k * sw, 0, sw, sh);
     }
     b.car.rotation.y = ry; tc.aspect = w / h; tc.updateProjectionMatrix();
-    strip.toBlob(bl => { spins[i] = URL.createObjectURL(bl); document.querySelectorAll(`.spin[data-car="${i}"]`).forEach(liven); }, 'image/jpeg', 0.84);
+    strip.toBlob(bl => { spins[i] = URL.createObjectURL(bl); document.querySelectorAll(`.spin[data-car="${i}"]`).forEach(liven); }, BAKE ? 'image/png' : 'image/jpeg', 0.84);
     b.pivot.visible = false; b.bar.visible = true;
   });
   renderer.setScissorTest(false);
@@ -491,7 +491,10 @@ function makeThumbs() {
   ground.visible = true; lot.visible = true;
   bays.forEach(b => { b.pivot.visible = true; });
 }
-makeThumbs();
+// The turntable strips are rendered once ahead of time (open the site with ?bake to render them again)
+const BAKE = new URLSearchParams(location.search).has('bake');
+if (BAKE) makeThumbs();
+else CARS.forEach((c, i) => { spins[i] = `assets/ui/spin/${c.id}.webp`; thumbs[i] = spins[i]; });
 
 const rail = $('#rail');
 rail.innerHTML = CARS.map((c, i) => `<button type="button" data-i="${i}" style="--c:${uiPaint[i]};transition:opacity .3s ${(0.6 + i * 0.05).toFixed(2)}s,transform .8s cubic-bezier(.16,1,.3,1) ${(0.6 + i * 0.05).toFixed(2)}s" aria-label="${name(c)}">${spinEl(i)}<span>${name(c)}</span></button>`).join('');
@@ -1348,7 +1351,10 @@ ld.done = true;
 camera.position.copy(ARRIVE_POS); look.copy(ARRIVE_TGT); camera.lookAt(look);
 mode = 'warm';
 studio.visible = true;   // compile the studio set now too, so the first switch into it never stalls
+// compile against the post-processing target: frames render there (linear, no tone mapping), so these are the shaders actually used
+renderer.setRenderTarget(composer.readBuffer);
 try { await renderer.compileAsync(scene, camera); } catch (e) { renderer.compile(scene, camera); }
+renderer.setRenderTarget(null);
 studio.visible = env === 'studio';
 requestAnimationFrame(t => { last = t; loop(t); });
-window.__k = { get quality() { return quality; }, get walk() { return sT; }, bloom, ground, composer, renderer, POOL, get frame() { return frame; }, get dbg() { return { arriveT0, now: performance.now(), mode, reduce, cam: camera.position.toArray() }; }, scene, camera, bays, enterRoom, exitRoom, setEnv, get mode() { return mode; }, closeUp, pickPart, openSheet, walkTo, engine };
+window.__k = { spins, get quality() { return quality; }, get walk() { return sT; }, bloom, ground, composer, renderer, POOL, get frame() { return frame; }, get dbg() { return { arriveT0, now: performance.now(), mode, reduce, cam: camera.position.toArray() }; }, scene, camera, bays, enterRoom, exitRoom, setEnv, get mode() { return mode; }, closeUp, pickPart, openSheet, walkTo, engine };

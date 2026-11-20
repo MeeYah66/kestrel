@@ -136,8 +136,8 @@ const [models, hStudio, hMorning, hGolden, hNight, aDiff, aRough, aNorm, aoTex] 
   load(rgbe, 'assets/hdr/sunset_jhbcentral.hdr'),
   load(rgbe, 'assets/hdr/rooftop_night.hdr'),
   load(texL, 'assets/tex/asphalt_diff_2k.jpg'),
-  load(texL, 'assets/tex/asphalt_rough_2k.jpg'),
-  load(texL, 'assets/tex/asphalt_nor_gl_2k.jpg'),
+  load(texL, 'assets/tex/asphalt_rough_2k.webp'),
+  load(texL, 'assets/tex/asphalt_nor_gl_2k.webp'),
   load(texL, 'assets/cars/ferrari_ao.png'),
   document.fonts.load('900 120px "Cabinet Grotesk"'), document.fonts.load('800 120px "Cabinet Grotesk"'),
 ]);

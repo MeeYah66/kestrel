@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Kestrel Motor House</title>
+<meta name="description" content="Kestrel Motor House, Ikoyi. Seven cars on the lot tonight. Walk the row, step into any bay, turn the car and look closer.">
+<meta name="theme-color" content="#060606">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Kestrel Motor House">
+<meta property="og:description" content="Walk a supercar lot in Ikoyi, step into any bay, turn the car and book a viewing.">
+<meta property="og:url" content="https://meeyah66.github.io/kestrel/">
+<meta property="og:image" content="https://meeyah66.github.io/kestrel/assets/ui/share.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon"href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect width=%2716%27 height=%2716%27 fill=%27%23FF5A1F%27/%3E%3C/svg%3E">
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="css/site.css">
+<script type="importmap">{"imports":{"three":"./vendor/three/build/three.module.js","three/addons/":"./vendor/three/examples/jsm/"}}</script>
+</head>
+<body class="is-loading">
+<canvas id="gl" aria-hidden="true"></canvas>
+
+<!-- arrival -->
+<div class="arrive" id="arrive">
+  <div class="arrive-mark"><span class="wm">Kestrel</span><small>Motor House · Ikoyi, Lagos</small></div>
+  <div class="ld" id="ld" aria-hidden="true">
+    <div class="ld-track"><i class="ld-fill" id="ldFill"></i><b class="ld-sq l"></b><b class="ld-sq r"></b></div>
+    <div class="ld-rig" id="ldRig"><div class="ld-car"><img class="wh r" src="assets/ui/loader-wheel-rear.webp" alt=""><img class="wh f" src="assets/ui/loader-wheel-front.webp" alt=""><img class="bd" src="assets/ui/loader-body.webp" alt=""></div><div class="ld-car refl"><img class="wh r" src="assets/ui/loader-wheel-rear.webp" alt=""><img class="wh f" src="assets/ui/loader-wheel-front.webp" alt=""><img class="bd" src="assets/ui/loader-body.webp" alt=""></div></div>
+  </div>
+</div>
+
+<!-- the frame: hairlines with square nodes, drawn in on arrival -->
+<div class="frame" aria-hidden="true"><i class="fl fl-l"></i><i class="fl fl-r"></i><i class="fl fl-t"></i><i class="fl fl-b"></i><b class="sq sq-tl"></b><b class="sq sq-tr"></b><b class="sq sq-bl"></b><b class="sq sq-br"></b></div>
+
+<!-- always on -->
+<header class="top">
+  <a class="brand" href="#" id="home" aria-label="Kestrel Motor House, back to the lot"><span class="wm">Kestrel</span><small>Motor House</small></a>
+  <button class="back" id="back" type="button"><svg viewBox="0 0 256 256" aria-hidden="true"><path d="M224 128a8 8 0 0 1-8 8H59.3l58.4 58.3a8 8 0 0 1-11.4 11.4l-72-72a8 8 0 0 1 0-11.4l72-72a8 8 0 0 1 11.4 11.4L59.3 120H216a8 8 0 0 1 8 8Z"/></svg>The lot</button>
+  <nav class="nav" aria-label="Main">
+    <button type="button" class="snd" id="sndBtn" aria-pressed="true" aria-label="Engine sound"><span class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span class="sl">Sound</span></button>
+    <button type="button" class="wide-only" data-open="sell">Sell your car</button>
+    <button type="button" class="wide-only" data-open="fin">Finance</button>
+    <button type="button" class="wide-only" data-open="visit">Visit</button>
+    <button type="button" class="cta" id="bookTop">Book a viewing</button>
+    <button type="button" class="menu-btn" data-open="menu" aria-label="Menu"><i></i><i></i></button>
+  </nav>
+</header>
+
+<!-- the lot -->
+<section class="lot-ui" id="lotUi" aria-label="The lot">
+  <div class="lot-head">
+    <p class="over">Motor House · Ikoyi, Lagos</p>
+    <h1 id="lotH1"><span class="ln"><span>Kestrel</span></span></h1>
+  </div>
+  <div class="filters" role="group" aria-label="Filter the lot">
+    <button type="button" class="on" data-f="all">All</button>
+    <button type="button" data-f="Supercar">Supercars</button>
+    <button type="button" data-f="Hypercar">Hypercar</button>
+    <button type="button" data-f="Luxury">Luxury</button>
+    <button type="button" data-f="SUV">SUV</button>
+  </div>
+  <ol class="bays" id="bays" aria-label="Bays"></ol>
+  <div class="walkhint" id="walkhint"><span class="key">Scroll</span> or <span class="key">drag</span> to walk the row</div>
+</section>
+
+<!-- hover tag in the lot -->
+<div class="tag" id="tag" aria-hidden="true"><b class="num"></b><span class="tn"></span><span class="tp num"></span><i>Step in</i></div>
+
+<!-- the car room -->
+<section class="room-ui" id="roomUi" aria-label="Car room">
+  <aside class="rail" id="rail" aria-label="Other cars on the lot"></aside>
+  <div class="envs" role="group" aria-label="Setting">
+    <div class="seg" id="envSeg">
+      <button type="button" data-env="lot">Showroom</button>
+      <button type="button" data-env="studio" class="on">Studio</button>
+    </div>
+    <div class="times" id="times" role="group" aria-label="Studio lighting">
+      <button type="button" data-t="day" class="on">Daylight<small>5600K</small></button>
+      <button type="button" data-t="golden">Golden<small>3200K</small></button>
+      <button type="button" data-t="black">Blackout<small>Rim</small></button>
+    </div>
+    <button type="button" class="chip" id="lightsBtn" aria-pressed="false">Lights on</button>
+  </div>
+  <button type="button" class="rev" id="rev" aria-label="Hold to rev the engine">
+    <span class="rev-top"><span class="lbl">Hold to rev</span><span class="rpm"><b class="num" id="rpm">0</b> rpm</span></span>
+    <span class="tach" aria-hidden="true"><i id="tach"></i></span>
+  </button>
+  <div class="coach" id="coach" aria-hidden="true">
+    <svg viewBox="0 0 220 72">
+      <path class="ob" d="M10,36 A100,24 0 0 1 210,36"/>
+      <path class="of" d="M210,36 A100,24 0 0 1 10,36"/>
+      <path class="ar" d="M3,44 L10,35 L17,44 M203,44 L210,35 L217,44"/>
+      <rect class="dt" x="-5" y="-5" width="10" height="10"><animateMotion dur="3.6s" repeatCount="indefinite" path="M10,36 A100,24 0 1 0 210,36 A100,24 0 1 0 10,36"/></rect>
+    </svg>
+    <span>Drag to turn<em> · Hover any part</em></span>
+  </div>
+  <div class="hint" id="hint"><span>Drag to turn</span><span>Scroll to zoom</span><span>Hover any part</span></div>
+  <article class="card" id="card">
+    <p class="over num" id="cOver"></p>
+    <h2 id="cName" class="mask"></h2>
+    <div class="price"><b class="num" id="cNaira"></b><span class="num" id="cUsd"></span></div>
+    <dl class="specs num" id="cSpecs"></dl>
+    <div class="acts">
+      <button type="button" class="cta" id="bookCard">Book a viewing</button>
+      <button type="button" class="ghost" id="reserveCard">Reserve</button>
+      <button type="button" class="ghost" id="walkCard">Walkaround video</button>
+    </div>
+  </article>
+  <article class="detail" id="detail" aria-live="polite">
+    <p class="over" id="dOver"></p>
+    <h3 id="dName"></h3>
+    <p id="dText"></p>
+    <button type="button" class="ghost" id="dBack">Back to the car</button>
+  </article>
+</section>
+
+<!-- part label pinned to the car -->
+<div class="pin" id="pin" aria-hidden="true"><i class="dot"></i><i class="leg"></i><div class="pc"><b></b><span></span></div></div>
+
+<!-- booking -->
+<div class="dim" id="dim"></div>
+<aside class="sheet" id="sheet" aria-labelledby="shTitle" inert>
+  <div class="sh-head"><h3 id="shTitle">Book a viewing</h3><button type="button" class="x" id="shClose" aria-label="Close"><svg viewBox="0 0 256 256"><path d="M205.7 194.3a8 8 0 0 1-11.4 11.4L128 139.3l-66.3 66.4a8 8 0 0 1-11.4-11.4L116.7 128 50.3 61.7a8 8 0 0 1 11.4-11.4L128 116.7l66.3-66.4a8 8 0 0 1 11.4 11.4L139.3 128Z"/></svg></button></div>
+  <div class="sh-body" id="shBody"></div>
+</aside>
+
+<div class="xf" id="xf" aria-hidden="true"><canvas id="xfShot"></canvas></div><i class="xf-light" id="xfLight" aria-hidden="true"></i>
+<div class="toast" id="toast" role="status"></div>
+<button type="button" class="credits" id="credits">Credits</button>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

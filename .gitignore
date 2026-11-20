@@ -1,0 +1,19 @@
+# Source files and working material, kept off the live site
+/models/
+/showcase/
+/.work/
+/.claude/
+/ph.json
+/model-picks.jpg
+
+# Parts of three.js the site doesn't load
+/vendor/three/src/
+/vendor/three/build/three.cjs
+/vendor/three/build/three.webgpu*
+
+# Assets no longer used
+/assets/cars/ferrari.glb
+/assets/hdr/small_harbour_morning.*
+/assets/hdr/studio_small_08.hdr
+/assets/hdr/venice_sunset.*
+/assets/sfx/raw/

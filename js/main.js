@@ -124,17 +124,19 @@ function ldLaunch() {
 }
 requestAnimationFrame(ldTick);
 
-// the seven cars, each baked into one merged GLB (see .work/prep.html)
-const carFrac = CARS.map(() => 0);
-const carsP = Promise.all(CARS.map((c, i) => load(gltfL, `assets/cars/real/${c.file}.glb`, e => {
-  if (e.total) { carFrac[i] = e.loaded / e.total; glbFrac = carFrac.reduce((a, b) => a + b) / CARS.length; }
-})));
-const [models, hStudio, hMorning, hGolden, hNight, aDiff, aRough, aNorm, aoTex] = await Promise.all([
+// the seven cars, each baked into one merged GLB (see .work/prep.html).
+// The lot opens once the cars you see on arrival are in; the rest stream in behind, nearest to the visitor first.
+const BAKE = new URLSearchParams(location.search).has('bake'); // ?bake renders the turntable strips again
+const FIRST = BAKE ? CARS.length : 3;
+const gltfS = new GLTFLoader().setDRACOLoader(draco); // outside the loading bar
+const carFrac = CARS.map(() => 0), carLoad = [];
+const fetchCar = i => carLoad[i] ||= load(i < FIRST ? gltfL : gltfS, `assets/cars/real/${CARS[i].file}.glb`, e => {
+  if (e.total && i < FIRST) { carFrac[i] = e.loaded / e.total; glbFrac = carFrac.slice(0, FIRST).reduce((a, b) => a + b) / FIRST; }
+});
+const carsP = Promise.all(CARS.slice(0, FIRST).map((c, i) => fetchCar(i)));
+const [models, hStudio, aDiff, aRough, aNorm, aoTex] = await Promise.all([
   carsP,
   load(rgbe, 'assets/hdr/studio_small_09.hdr'),
-  load(rgbe, 'assets/hdr/learner_park.hdr'),
-  load(rgbe, 'assets/hdr/sunset_jhbcentral.hdr'),
-  load(rgbe, 'assets/hdr/rooftop_night.hdr'),
   load(texL, 'assets/tex/asphalt_diff_2k.jpg'),
   load(texL, 'assets/tex/asphalt_rough_2k.webp'),
   load(texL, 'assets/tex/asphalt_nor_gl_2k.webp'),
@@ -144,7 +146,12 @@ const [models, hStudio, hMorning, hGolden, hNight, aDiff, aRough, aNorm, aoTex] 
 
 const pmrem = new THREE.PMREMGenerator(renderer);
 const envOf = t => { t.mapping = THREE.EquirectangularReflectionMapping; const e = pmrem.fromEquirectangular(t).texture; t.dispose(); return e; };
-const ENV = { studio: envOf(hStudio), morning: envOf(hMorning), golden: envOf(hGolden), night: envOf(hNight) };
+const ENV = { studio: envOf(hStudio) };
+// the waterfront lighting is only fetched if that set is ever shown
+const HDR = { morning: 'learner_park', golden: 'sunset_jhbcentral', night: 'rooftop_night' };
+const ensureEnv = async k => (ENV[k] ||= envOf(await load(rgbe, `assets/hdr/${HDR[k]}.hdr`)));
+// start the next two cars now, while the first frames compile
+for (let i = FIRST; i < Math.min(CARS.length, FIRST + 2); i++) fetchCar(i);
 for (const t of [aDiff, aRough, aNorm]) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; }
 aDiff.colorSpace = THREE.SRGBColorSpace;
 aoTex.colorSpace = THREE.SRGBColorSpace;
@@ -309,27 +316,13 @@ const bays = CARS.map((spec, i) => {
   pivot.rotation.y = YAW;
   scene.add(pivot);
 
-  const car = models[i].scene;
-  const paint = new THREE.MeshPhysicalMaterial({ color: spec.paint.hex, metalness: spec.paint.metal, roughness: spec.paint.rough, clearcoat: 1, clearcoatRoughness: 0.03, name: 'paint' });
-  const parts = {}, lamps = [], tails = [];
-  car.traverse(o => {
-    if (!o.isMesh) return;
-    o.userData.part = /^trim_/.test(o.name) ? null : o.userData.part ?? partOf(o);
-    const p = o.userData.part;
-    o.material = p === 'paint' ? paint : p === 'glass' ? glassMat : o.material.clone();
-    const rc = spec.recolour && spec.recolour[o.material.name]; if (rc) o.material.color.set(rc);
-    if (p) (parts[p] ||= []).push(o);
-    if (p === 'lights') lamps.push(o.material);
-    if (p === 'taillights') tails.push(o.material);
-  });
-  const csz = new THREE.Box3().setFromObject(car).getSize(new V3());
-  const ao = new THREE.Mesh(new THREE.PlaneGeometry(csz.x * 1.34, csz.z * 1.155), new THREE.MeshBasicMaterial({ map: aoTex, blending: THREE.MultiplyBlending, premultipliedAlpha: true, transparent: true, depthWrite: false, toneMapped: false }));
-  ao.rotation.x = -Math.PI / 2; ao.position.y = 0.004; ao.renderOrder = 2; ao.raycast = noRay;
-  car.add(ao);
+  // the car sits in a holder, so the bay works (hover, turntable, lights) before its model has arrived
+  const car = new THREE.Group(); car.visible = false;
   pivot.add(car);
+  const paint = new THREE.MeshPhysicalMaterial({ color: spec.paint.hex, metalness: spec.paint.metal, roughness: spec.paint.rough, clearcoat: 1, clearcoatRoughness: 0.03, name: 'paint' });
 
-  const proxy = new THREE.Mesh(new THREE.BoxGeometry(csz.x + 0.2, csz.y, csz.z + 0.2), new THREE.MeshBasicMaterial());
-  proxy.position.y = csz.y / 2; proxy.visible = false; proxy.userData.bay = i;
+  const proxy = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.3, 4.9), new THREE.MeshBasicMaterial());
+  proxy.position.y = 0.65; proxy.visible = false; proxy.userData.bay = i;
   pivot.add(proxy);
 
   const barMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
@@ -347,8 +340,30 @@ const bays = CARS.map((spec, i) => {
   num.raycast = noRay;
   lot.add(num);
 
-  return { i, spec, pivot, car, paint, parts, lamps, tails, proxy, bar, barMat, numMat, num, on: 0, lvl: 0, overlays: {} };
+  return { i, spec, pivot, car, paint, parts: {}, lamps: [], tails: [], proxy, bar, barMat, numMat, num, on: 0, lvl: 0, overlays: {}, ready: false, lit: Infinity };
 });
+
+// dress a downloaded model for its bay: paint, glass, part tags, contact shadow, hover box
+function fitCar(b, model) {
+  const { spec, parts, lamps, tails, paint } = b;
+  model.traverse(o => {
+    if (!o.isMesh) return;
+    o.userData.part = /^trim_/.test(o.name) ? null : o.userData.part ?? partOf(o);
+    const p = o.userData.part;
+    o.material = p === 'paint' ? paint : p === 'glass' ? glassMat : o.material.clone();
+    const rc = spec.recolour && spec.recolour[o.material.name]; if (rc) o.material.color.set(rc);
+    if (p) (parts[p] ||= []).push(o);
+    if (p === 'lights') lamps.push(o.material);
+    if (p === 'taillights') tails.push(o.material);
+  });
+  const csz = new THREE.Box3().setFromObject(model).getSize(new V3());
+  const ao = new THREE.Mesh(new THREE.PlaneGeometry(csz.x * 1.34, csz.z * 1.155), new THREE.MeshBasicMaterial({ map: aoTex, blending: THREE.MultiplyBlending, premultipliedAlpha: true, transparent: true, depthWrite: false, toneMapped: false }));
+  ao.rotation.x = -Math.PI / 2; ao.position.y = 0.004; ao.renderOrder = 2; ao.raycast = noRay;
+  model.add(ao);
+  b.proxy.geometry.dispose(); b.proxy.geometry = new THREE.BoxGeometry(csz.x + 0.2, csz.y, csz.z + 0.2); b.proxy.position.y = csz.y / 2;
+  return model;
+}
+for (let i = 0; i < FIRST; i++) { bays[i].car.add(fitCar(bays[i], models[i].scene)); bays[i].ready = true; bays[i].car.visible = true; }
 
 /* ---------- studio + waterfront sets ---------- */
 const studio = new THREE.Group(); studio.visible = false; scene.add(studio);
@@ -492,7 +507,6 @@ function makeThumbs() {
   bays.forEach(b => { b.pivot.visible = true; });
 }
 // The turntable strips are rendered once ahead of time (open the site with ?bake to render them again)
-const BAKE = new URLSearchParams(location.search).has('bake');
 if (BAKE) makeThumbs();
 else CARS.forEach((c, i) => { spins[i] = `assets/ui/spin/${c.id}.webp`; thumbs[i] = spins[i]; });
 
@@ -506,7 +520,7 @@ setFocusBay(0);
 
 /* ---------- toast, credits ---------- */
 let toastT;
-function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3200); }
+function toast(msg, ms = 3200) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastT); if (ms) toastT = setTimeout(() => t.classList.remove("show"), ms); }
 const cred = document.createElement('div'); cred.className = 'credpanel';
 cred.innerHTML = `<p><b>Models</b>, from Sketchfab, repainted for the lot:</p><p>${CARS.map(c => `${c.year} ${c.make} ${c.model}: ${c.credit}`).join('<br>')}</p><p>Lighting and asphalt: Poly Haven (CC0). Engine sounds: Pixabay (Chrysalyn and others). Type: Cabinet Grotesk.</p>`;
 body.append(cred);
@@ -570,8 +584,10 @@ async function enterRoom(j) {
   fillCard(j); hideTag();
   engine.ignite();
   body.classList.add('in-room'); body.classList.remove('hovering');
+  const ready = need(j);
   const p = new V3(), t = new V3(); roomPose(j, p, t);
   await fly(p, t, 1900, 0.5);
+  await ready;
   await wipe(() => applyEnv('studio'), { p, t });
   controls.target.copy(t); controls.enabled = true; controls.autoRotate = false; controls.update();
   mode = 'room'; touchT = performance.now() - 2000; showCoach();
@@ -603,6 +619,7 @@ async function switchCar(j) {
   if (j === sel || (mode !== 'room' && mode !== 'close')) return;
   engine.stop(); revUp();
   mode = 'fly'; controls.enabled = false; controls.autoRotate = false; clearHover(); body.classList.remove('closeup');
+  await need(j);
   look.copy(controls.target);
   const p = new V3(), t = new V3();
   if (env === 'lot') {
@@ -668,7 +685,7 @@ async function applyEnv(name) {
   } else if (name === 'studio') {
     const m = MOODS[time]; scene.environment = ENV.studio; scene.environmentIntensity = m.env; scene.background = new THREE.Color(0x080808); scene.fog = fogWater; renderer.toneMappingExposure = m.exp;
   } else {
-    await ensureSky(time);
+    await Promise.all([ensureSky(time), ensureEnv(time)]);
     skybox.position.set(x, SKY[time][1] - 0.01, 0); skybox.visible = true;
     scene.environment = ENV[time]; scene.environmentIntensity = time === 'night' ? 1.3 : 1.0; scene.fog = fogWater; renderer.toneMappingExposure = SKY[time][2];
   }
@@ -1207,6 +1224,7 @@ function loop(now) {
     if ((warmN >= 4 || frame > 90) && ldReady()) {
       if (warmN >= 4) setQuality(DPR * Math.min(1, Math.sqrt((warmN / warmAcc) / 52)));
       mode = 'arrive'; arriveT0 = reduce ? now - 1e6 : now + 450;
+      bays.forEach(b => { if (b.ready) b.lit = strikeAt(b.i); });
       body.classList.remove('is-loading'); fadeTo(0, reduce ? 300 : 1700);
       if (!reduce) ldLaunch();
     }
@@ -1225,9 +1243,8 @@ function loop(now) {
     camera.position.x += Math.sin(at * 0.4) * 0.04 * (1 - k);
     camera.lookAt(look);
     signOn = clamp(at / 0.9, 0, 1);
-    bays.forEach((b, i) => { b.on = flick(at - (1.0 + i * 0.32)); });
     if (at > 6.4 && !body.classList.contains('ready')) body.classList.add('ready');
-    if (at > 7.5) { mode = 'lot'; bays.forEach(b => { b.on = 1; }); }
+    if (at > 7.5) mode = 'lot';
   } else if (!runFlight(now)) {
     if (mode === 'lot') {
       s += (sT - s) * (1 - Math.exp(-dt * 4.2));
@@ -1297,6 +1314,8 @@ function loop(now) {
   // bay lighting
   const inRoom = mode === 'room' || mode === 'close' || (mode === 'fly' && body.classList.contains('in-room'));
   bays.forEach((b, i) => {
+    b.on = flick((now - b.lit) / 1000); // each bay's tube strikes once its car is in
+    if (!b.car.visible && now >= b.lit) b.car.visible = true;
     let tgt = 1;
     if (inRoom) tgt = i === sel ? 1.35 : 0.12;
     else { if (!matches(i)) tgt = 0.16; if (i === hovBay) tgt = 1.3; }
@@ -1346,6 +1365,42 @@ function fillTag(i) {
   tagEl.classList.add('show');
 }
 
+/* ---------- the rest of the lot, streamed in ---------- */
+// when a bay's tube strikes: its slot in the arrival sequence, or straight away once the car lands
+const strikeAt = i => Math.max(arriveT0 + (1.0 + i * 0.32) * 1000, performance.now() + 180);
+let booted; const bootP = new Promise(r => { booted = r; });
+const carIn = [];
+const bringIn = i => carIn[i] ||= fetchCar(i).then(async g => {
+  await bootP;
+  const b = bays[i], model = fitCar(b, g.scene);
+  // compile its shaders against the post-processing target before it joins the scene, so nothing stalls
+  renderer.setRenderTarget(composer.readBuffer);
+  const c = renderer.compileAsync(model, camera, scene);
+  renderer.setRenderTarget(null);
+  await c.catch(() => {});
+  b.car.add(model); b.ready = true;
+  if (mode !== 'warm') b.lit = strikeAt(i);
+});
+const queue = new Set(CARS.map((c, i) => i).filter(i => i >= FIRST));
+let inflight = 0;
+function pump() {
+  while (inflight < 2 && queue.size) {
+    const at = mode === 'room' || mode === 'close' ? sel : s;
+    let next = -1; for (const i of queue) if (next < 0 || Math.abs(i - at) < Math.abs(next - at)) next = i;
+    queue.delete(next); inflight++;
+    bringIn(next).catch(e => console.error(e)).finally(() => { inflight--; pump(); });
+  }
+}
+// a car the visitor asked for jumps the queue
+async function need(i) {
+  if (bays[i].ready) return;
+  if (queue.delete(i)) bringIn(i).catch(e => console.error(e));
+  toast(`Bringing the ${CARS[i].model} round`, 0); // stays up until the car is in
+  await carIn[i];
+  clearTimeout(toastT); $("#toast").classList.remove("show"); // the car arriving says the rest
+  const b = bays[i]; b.lit = Math.min(b.lit, performance.now()); b.car.visible = true; // asked for: no wait on the tube
+}
+
 /* ---------- go ---------- */
 ld.done = true;
 camera.position.copy(ARRIVE_POS); look.copy(ARRIVE_TGT); camera.lookAt(look);
@@ -1357,4 +1412,5 @@ try { await renderer.compileAsync(scene, camera); } catch (e) { renderer.compile
 renderer.setRenderTarget(null);
 studio.visible = env === 'studio';
 requestAnimationFrame(t => { last = t; loop(t); });
-window.__k = { spins, get quality() { return quality; }, get walk() { return sT; }, bloom, ground, composer, renderer, POOL, get frame() { return frame; }, get dbg() { return { arriveT0, now: performance.now(), mode, reduce, cam: camera.position.toArray() }; }, scene, camera, bays, enterRoom, exitRoom, setEnv, get mode() { return mode; }, closeUp, pickPart, openSheet, walkTo, engine };
+booted(); pump();
+window.__k = { spins, get loaded() { return bays.filter(b => b.ready).length; }, get quality() { return quality; }, get walk() { return sT; }, bloom, ground, composer, renderer, POOL, get frame() { return frame; }, get dbg() { return { arriveT0, now: performance.now(), mode, reduce, cam: camera.position.toArray() }; }, scene, camera, bays, enterRoom, exitRoom, setEnv, get mode() { return mode; }, closeUp, pickPart, openSheet, walkTo, engine };
